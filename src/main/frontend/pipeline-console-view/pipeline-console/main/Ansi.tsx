@@ -1,8 +1,16 @@
 export interface Result {
   isSelectGraphicRendition?: boolean;
   escapeCode?: string; // input
-  setFG?: number | false; // 0-7 if a foreground color is specified
-  setBG?: number | false; // 0-7 if a background color is specified
+  setFG?:
+    | number
+    | { palette256: number }
+    | { rgb: { r: number; g: number; b: number } }
+    | false;
+  setBG?:
+    | number
+    | { palette256: number }
+    | { rgb: { r: number; g: number; b: number } }
+    | false;
   resetFG?: boolean; // true if contains a reset back to default foreground
   resetBG?: boolean; // true if contains a reset back to default background
   setBold?: boolean; // true if contains a bold font style
@@ -21,8 +29,8 @@ export interface Result {
  * {
  *     isSelectGraphicRendition: true,
  *     escapeCode: string, // input
- *     setFG: integer | false, // 0-7 if a foreground color is specified
- *     setBG: integer | false, // 0-7 if a background color is specified
+ *     setFG: number | {palette256: number} | {rgb: {r, g, b}} | false,
+ *     setBG: number | {palette256: number} | {rgb: {r, g, b}} | false,
  *     resetFG: bool, // true if contains a reset back to default foreground
  *     resetBG: bool // true if contains a reset back to default background
  *     setBold: boolean, // true if contains a bold font style
@@ -41,7 +49,7 @@ export interface Result {
  */
 export function parseEscapeCode(escapeCode: string): Result {
   // eslint-disable-next-line no-control-regex
-  const graphicsPattern = /^\u001b\[([;0-9]*)m$/; // We only care about SGR codes
+  const graphicsPattern = /^\u001b\[([;0-9-]*)m$/; // We only care about SGR codes
 
   const result: Result = {
     isSelectGraphicRendition: false, // True when is a color / font command
@@ -63,7 +71,9 @@ export function parseEscapeCode(escapeCode: string): Result {
       .map((str) => parseInt(str || "0"));
 
     // Now go through the ints, decode them into bg/fg info
-    for (const num of params) {
+    for (let i = 0; i < params.length; i++) {
+      const num = params[i];
+
       if (num >= 30 && num <= 37) {
         result.setFG = num - 30; // Normal FG set
       } else if (num >= 40 && num <= 47) {
@@ -91,7 +101,78 @@ export function parseEscapeCode(escapeCode: string): Result {
         result.setStrikeThrough = true;
       } else if (num === 29) {
         result.setStrikeThrough = false;
+      } else if (num === 38) {
+        // Extended foreground color
+        if (i + 2 < params.length && params[i + 1] === 5) {
+          // 256-color mode: ESC[38;5;n
+          const colorIndex = params[i + 2];
+          if (colorIndex >= 0 && colorIndex <= 255) {
+            result.setFG = { palette256: colorIndex };
+          } else {
+            result.setFG = false; // Explicitly set to false for invalid values
+          }
+          i += 2; // Skip the next two parameters
+        } else if (i + 1 < params.length && params[i + 1] === 2) {
+          // True color mode: ESC[38;2;r;g;b
+          if (i + 4 < params.length) {
+            const r = params[i + 2];
+            const g = params[i + 3];
+            const b = params[i + 4];
+            if (
+              r >= 0 &&
+              r <= 255 &&
+              g >= 0 &&
+              g <= 255 &&
+              b >= 0 &&
+              b <= 255
+            ) {
+              result.setFG = { rgb: { r, g, b } };
+            } else {
+              result.setFG = false; // Explicitly set to false for invalid values
+            }
+            i += 4; // Skip the next four parameters
+          } else {
+            result.setFG = false; // Not enough parameters
+            i += Math.min(4, params.length - i - 1); // Skip available parameters
+          }
+        }
+      } else if (num === 48) {
+        // Extended background color
+        if (i + 2 < params.length && params[i + 1] === 5) {
+          // 256-color mode: ESC[48;5;n
+          const colorIndex = params[i + 2];
+          if (colorIndex >= 0 && colorIndex <= 255) {
+            result.setBG = { palette256: colorIndex };
+          } else {
+            result.setBG = false; // Explicitly set to false for invalid values
+          }
+          i += 2; // Skip the next two parameters
+        } else if (i + 1 < params.length && params[i + 1] === 2) {
+          // True color mode: ESC[48;2;r;g;b
+          if (i + 4 < params.length) {
+            const r = params[i + 2];
+            const g = params[i + 3];
+            const b = params[i + 4];
+            if (
+              r >= 0 &&
+              r <= 255 &&
+              g >= 0 &&
+              g <= 255 &&
+              b >= 0 &&
+              b <= 255
+            ) {
+              result.setBG = { rgb: { r, g, b } };
+            } else {
+              result.setBG = false; // Explicitly set to false for invalid values
+            }
+            i += 4; // Skip the next four parameters
+          } else {
+            result.setBG = false; // Not enough parameters
+            i += Math.min(4, params.length - i - 1); // Skip available parameters
+          }
+        }
       } else {
+        // Handle resets
         if (num === 39 || num === 0) {
           result.resetFG = true;
           result.setFG = false;
@@ -111,7 +192,7 @@ export function parseEscapeCode(escapeCode: string): Result {
 /**
  * Break up a string into an array of plain strings and escape codes. Returns [input] if no codes present.
  */
-export function tokenizeANSIString(input?: string): string[] | Result[] {
+export function tokenizeANSIString(input?: string): (string | Result)[] {
   if (typeof input !== "string") {
     return [];
   }
@@ -137,7 +218,7 @@ export function tokenizeANSIString(input?: string): string[] | Result[] {
   let commentStartIndex = 0;
   // comment end
   let commentEndIndex = 0;
-  const result: string[] | Result[] = [];
+  const result: (string | Result)[] = [];
 
   while (loopCounter < len) {
     //--------------------------------------------------------------------------
@@ -208,11 +289,11 @@ export function tokenizeANSIString(input?: string): string[] | Result[] {
 }
 
 /**
- * Takes an array of string snippets and parsed escape codes produced bv tokenizeANSIString, and creates
+ * Takes an array of string snippets and parsed escape codes produced by tokenizeANSIString, and creates
  * an array of strings and spans with classNames for attributes.
  */
 export function makeReactChildren(
-  tokenizedInput: string[] | Result[],
+  tokenizedInput: (string | Result)[],
   key: string,
 ) {
   const result = [];
@@ -230,15 +311,17 @@ export function makeReactChildren(
     const codeOrString = tokenizedInput[i];
     if (typeof codeOrString === "string") {
       // Need to output a <span> or plain text if there's no interesting current state
-      if (
-        !currentState.setFG &&
-        !currentState.setBG &&
-        !currentState.setBold &&
-        !currentState.setFaint &&
-        !currentState.setItalic &&
-        !currentState.setUnderline &&
-        !currentState.setStrikeThrough
-      ) {
+      const hasStyles = !!(
+        currentState.setFG !== false ||
+        currentState.setBG !== false ||
+        currentState.setBold ||
+        currentState.setFaint ||
+        currentState.setItalic ||
+        currentState.setUnderline ||
+        currentState.setStrikeThrough
+      );
+
+      if (!hasStyles) {
         result.push(
           <div
             dangerouslySetInnerHTML={{ __html: codeOrString }}
@@ -247,12 +330,36 @@ export function makeReactChildren(
         );
       } else {
         const classNames = [];
+        const inlineStyles: React.CSSProperties = {};
 
+        // Handle foreground colors
         if (typeof currentState.setFG === "number") {
           classNames.push(`ansi-fg-${currentState.setFG}`);
+        } else if (
+          currentState.setFG &&
+          typeof currentState.setFG === "object"
+        ) {
+          if ("palette256" in currentState.setFG) {
+            classNames.push(`ansi-fg-256-${currentState.setFG.palette256}`);
+          } else if ("rgb" in currentState.setFG) {
+            const { r, g, b } = currentState.setFG.rgb;
+            inlineStyles.color = `rgb(${r}, ${g}, ${b})`;
+          }
         }
+
+        // Handle background colors
         if (typeof currentState.setBG === "number") {
           classNames.push(`ansi-bg-${currentState.setBG}`);
+        } else if (
+          currentState.setBG &&
+          typeof currentState.setBG === "object"
+        ) {
+          if ("palette256" in currentState.setBG) {
+            classNames.push(`ansi-bg-256-${currentState.setBG.palette256}`);
+          } else if ("rgb" in currentState.setBG) {
+            const { r, g, b } = currentState.setBG.rgb;
+            inlineStyles.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+          }
         }
         if (currentState.setBold) {
           classNames.push("ansi-bold");
@@ -271,7 +378,15 @@ export function makeReactChildren(
         }
 
         result.push(
-          <span className={classNames.join(" ")}>{codeOrString}</span>,
+          <span
+            className={classNames.length > 0 ? classNames.join(" ") : undefined}
+            style={
+              Object.keys(inlineStyles).length > 0 ? inlineStyles : undefined
+            }
+            key={`${key}-${i}`}
+          >
+            {codeOrString}
+          </span>,
         );
       }
     } else if (codeOrString.isSelectGraphicRendition) {
@@ -285,10 +400,10 @@ export function makeReactChildren(
         nextState.setBG = false;
       }
 
-      if (typeof codeOrString.setFG === "number") {
+      if (codeOrString.setFG !== false) {
         nextState.setFG = codeOrString.setFG;
       }
-      if (typeof codeOrString.setBG === "number") {
+      if (codeOrString.setBG !== false) {
         nextState.setBG = codeOrString.setBG;
       }
 
