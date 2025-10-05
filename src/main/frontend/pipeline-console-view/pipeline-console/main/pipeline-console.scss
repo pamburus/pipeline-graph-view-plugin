@@ -2,20 +2,20 @@
   // can be removed and `--header-height` used directly when jenkins baseline is 2.507
   --pgv-header-height: var(--header-height, 45.5938px);
   --ansi-0: var(--black, #333);
-  --ansi-1: var(--red, #e44);
-  --ansi-2: var(--green, #2d2);
-  --ansi-3: var(--orange, #da2);
-  --ansi-4: var(--blue, #88e);
-  --ansi-5: var(--purple, #d4d);
-  --ansi-6: var(--cyan, #2ad);
+  --ansi-1: var(--red, oklch(70% 0.15 27));
+  --ansi-2: var(--green, oklch(70% 0.15 145));
+  --ansi-3: var(--orange, oklch(70% 0.15 75));
+  --ansi-4: var(--blue, oklch(70% 0.15 270));
+  --ansi-5: var(--purple, oklch(70% 0.15 335));
+  --ansi-6: var(--cyan, oklch(70% 0.15 210));
   --ansi-7: var(--white, #fff);
   --ansi-8: var(--secondary-text, #445);
-  --ansi-9: oklch(from var(--ansi-1) calc(l * 1.125) calc(c * 1.25) h);
-  --ansi-10: oklch(from var(--ansi-2) calc(l * 1.125) calc(c * 1.25) h);
-  --ansi-11: oklch(from var(--ansi-3) calc(l * 1.125) calc(c * 1.25) h);
-  --ansi-12: oklch(from var(--ansi-4) calc(l * 1.125) calc(c * 1.25) h);
-  --ansi-13: oklch(from var(--ansi-5) calc(l * 1.125) calc(c * 1.25) h);
-  --ansi-14: oklch(from var(--ansi-6) calc(l * 1.125) calc(c * 1.25) h);
+  --ansi-9: oklch(from var(--ansi-1) calc(l * 1.125) calc(c * 1.5) h);
+  --ansi-10: oklch(from var(--ansi-2) calc(l * 1.125) calc(c * 1.5) h);
+  --ansi-11: oklch(from var(--ansi-3) calc(l * 1.125) calc(c * 1.5) h);
+  --ansi-12: oklch(from var(--ansi-4) calc(l * 1.125) calc(c * 1.5) h);
+  --ansi-13: oklch(from var(--ansi-5) calc(l * 1.125) calc(c * 1.5) h);
+  --ansi-14: oklch(from var(--ansi-6) calc(l * 1.125) calc(c * 1.5) h);
   --ansi-15: oklch(from var(--ansi-7) calc(l * 1.25) c h);
 }
 
